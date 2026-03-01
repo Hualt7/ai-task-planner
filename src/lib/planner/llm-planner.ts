@@ -122,10 +122,7 @@ export async function generatePlan(
 
     const result = await generateObject({
       model: openrouter(modelId),
-      mode: 'tool',
       schema: symbolicPlanSchema,
-      schemaName: 'robotPlan',
-      schemaDescription: 'A symbolic action plan for the robot to execute',
       system: buildSystemPrompt(),
       prompt: buildUserPrompt(worldState, task),
       temperature: config.temperature ?? 0.1,
@@ -143,9 +140,9 @@ export async function generatePlan(
       model: modelId,
       usage: result.usage
         ? {
-            promptTokens: result.usage.promptTokens,
-            completionTokens: result.usage.completionTokens,
-            totalTokens: result.usage.totalTokens,
+            promptTokens: result.usage.inputTokens ?? 0,
+            completionTokens: result.usage.outputTokens ?? 0,
+            totalTokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
           }
         : undefined,
     };
@@ -154,7 +151,7 @@ export async function generatePlan(
     if (err instanceof Error) {
       detail = err.message;
       // Dig into nested error properties for provider details
-      const anyErr = err as Record<string, unknown>;
+      const anyErr = err as unknown as Record<string, unknown>;
       if (anyErr.data) detail += ` | data: ${JSON.stringify(anyErr.data)}`;
       if (anyErr.statusCode) detail += ` | status: ${anyErr.statusCode}`;
       if (anyErr.responseBody) detail += ` | body: ${JSON.stringify(anyErr.responseBody)}`;
