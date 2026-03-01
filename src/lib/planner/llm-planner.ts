@@ -121,7 +121,7 @@ export async function generatePlan(
     });
 
     const result = await generateObject({
-      model: openrouter(modelId, { structuredOutputs: false }),
+      model: openrouter(modelId),
       mode: 'tool',
       schema: symbolicPlanSchema,
       schemaName: 'robotPlan',
