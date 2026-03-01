@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useExecutor } from '@/hooks/useExecutor';
 import { PlanPanel } from '@/components/ui/PlanPanel';
 import { TaskInput } from '@/components/ui/TaskInput';
-import { ApiKeyInput } from '@/components/ui/ApiKeyInput';
 import { ModelSelector } from '@/components/ui/ModelSelector';
 import type { SymbolicAction } from '@/lib/types';
 
@@ -42,7 +41,6 @@ interface LlmStatus {
 
 export default function PlaygroundPage() {
   const executor = useExecutor();
-  const [apiKey, setApiKey] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('google/gemini-3-flash-preview');
   const [llmStatus, setLlmStatus] = useState<LlmStatus>({
     loading: false,
@@ -53,14 +51,8 @@ export default function PlaygroundPage() {
     planActions: null,
   });
 
-  const handleApiKeyChange = useCallback((key: string | null) => {
-    setApiKey(key);
-  }, []);
-
   const handleLlmPlan = useCallback(
     async (task: string) => {
-      if (!apiKey) return;
-
       setLlmStatus({ loading: true, reasoning: null, model: null, usage: null, validationError: null, planActions: null });
       executor.reset();
 
@@ -68,7 +60,7 @@ export default function PlaygroundPage() {
         const res = await fetch('/api/plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task, apiKey, model: selectedModel }),
+          body: JSON.stringify({ task, model: selectedModel }),
         });
 
         const data = await res.json();
@@ -108,7 +100,7 @@ export default function PlaygroundPage() {
         }));
       }
     },
-    [apiKey, selectedModel, executor]
+    [selectedModel, executor]
   );
 
   const clearAll = useCallback(() => {
@@ -183,9 +175,8 @@ export default function PlaygroundPage() {
 
         {/* Side panel */}
         <div className="w-80 border-l border-gray-800 flex flex-col overflow-y-auto bg-[#0a0a1a]">
-          {/* Settings row: API Key + Model */}
-          <div className="p-4 border-b border-gray-800 flex flex-col gap-3">
-            <ApiKeyInput onKeyChange={handleApiKeyChange} />
+          {/* Model selector */}
+          <div className="p-4 border-b border-gray-800">
             <ModelSelector
               value={selectedModel}
               onChange={setSelectedModel}
@@ -198,7 +189,7 @@ export default function PlaygroundPage() {
             <TaskInput
               onSubmit={handleLlmPlan}
               isLoading={llmStatus.loading}
-              disabled={!apiKey || executor.isRunning}
+              disabled={executor.isRunning}
             />
           </div>
 

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, apiKey, model } = body;
+    const { task, model } = body;
 
     if (!task || typeof task !== 'string' || task.trim().length === 0) {
       return NextResponse.json(
@@ -16,10 +16,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!apiKey || typeof apiKey !== 'string') {
+    // Use server-side API key (never exposed to client)
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
       return NextResponse.json(
-        { error: 'Missing OpenRouter API key' },
-        { status: 400 }
+        { error: 'Server misconfiguration: missing API key' },
+        { status: 500 }
       );
     }
 
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (!planResult.success) {
       // Save failed attempt to history
-      await supabase.from('plan_history').insert({
+      supabase.from('plan_history').insert({
         task: task.trim(),
         model: model || 'google/gemini-3-flash-preview',
         plan: [],
