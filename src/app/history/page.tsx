@@ -94,9 +94,9 @@ export default function HistoryPage() {
 
               <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-600 font-mono">
                 <span>{row.model}</span>
-                {row.token_usage && typeof row.token_usage === 'object' && (
-                  <span>{(row.token_usage as { totalTokens?: number }).totalTokens} tokens</span>
-                )}
+                {row.token_usage != null && typeof row.token_usage === 'object' ? (
+                  <span>{(row.token_usage as { totalTokens?: number }).totalTokens ?? 0} tokens</span>
+                ) : null}
                 <span>
                   {Array.isArray(row.plan) ? row.plan.length : 0} actions
                 </span>
