@@ -44,9 +44,13 @@ export function WorldStatePanel({ worldState }: WorldStatePanelProps) {
               <span>
                 {obj.isHeld
                   ? 'held'
-                  : obj.onSurface
-                    ? `on ${obj.onSurface}`
-                    : `(${obj.position.row},${obj.position.col})`}
+                  : obj.stackedOn
+                    ? `on ${obj.stackedOn}`
+                    : obj.onSurface
+                      ? `on ${obj.onSurface}`
+                      : obj.inContainer
+                        ? `in ${obj.inContainer}`
+                        : `(${obj.position.row},${obj.position.col})`}
               </span>
             </div>
           ))}
@@ -54,7 +58,7 @@ export function WorldStatePanel({ worldState }: WorldStatePanelProps) {
       </div>
 
       {/* Surfaces */}
-      <div>
+      <div className="mb-3">
         <div className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Surfaces</div>
         <div className="space-y-0.5 text-xs font-mono text-gray-400">
           {Object.values(worldState.surfaces).map((surface) => (
@@ -66,6 +70,27 @@ export function WorldStatePanel({ worldState }: WorldStatePanelProps) {
                   : 'empty'}
                 <span className="text-gray-600 ml-1">
                   ({surface.objectsOn.length}/{surface.slots})
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Containers */}
+      <div>
+        <div className="text-[10px] text-gray-600 uppercase tracking-wide mb-1">Containers</div>
+        <div className="space-y-0.5 text-xs font-mono text-gray-400">
+          {Object.values(worldState.containers).map((container) => (
+            <div key={container.id} className="flex justify-between">
+              <span style={{ color: container.color }}>{container.id}</span>
+              <span>
+                {container.isOpen ? 'open' : 'closed'}
+                {container.objectsInside.length > 0
+                  ? ` [${container.objectsInside.join(', ')}]`
+                  : ''}
+                <span className="text-gray-600 ml-1">
+                  ({container.objectsInside.length}/{container.slots})
                 </span>
               </span>
             </div>

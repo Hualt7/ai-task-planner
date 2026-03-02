@@ -1,0 +1,35 @@
+# Bridge configuration
+bridge:
+  websocket_port: 9090
+  grid_cell_size: 0.5       # meters per grid cell
+  grid_size: 10             # 10x10 grid
+  use_nav2: true            # Use Nav2 for navigation (false = simple P-controller)
+
+# Coordinate mapping
+# Grid (row, col) → World (col * cell_size + offset, -(row * cell_size + offset))
+# where offset = cell_size / 2
+#
+# Examples:
+#   (0, 0) → (0.25, -0.25)
+#   (2, 3) → (1.75, -1.25)
+#   (9, 9) → (4.75, -4.75)
+
+# Arm joint positions
+arm:
+  shoulder_lower: 1.4       # radians (arm down for pick/place)
+  shoulder_raise: 0.0       # radians (arm up / stowed)
+  gripper_open: 0.03        # meters (fingers apart)
+  gripper_close: 0.0        # meters (fingers together)
+
+# Timing
+timing:
+  arm_lower_wait: 1.5       # seconds to wait for arm to lower
+  gripper_wait: 1.0         # seconds to wait for gripper action
+  arm_raise_wait: 1.5       # seconds to wait for arm to raise
+
+# Navigation
+navigation:
+  goal_tolerance_xy: 0.05   # meters
+  goal_tolerance_yaw: 0.25  # radians
+  max_linear_vel: 0.3       # m/s
+  max_angular_vel: 1.5      # rad/s

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePlan } from '@/lib/planner/llm-planner';
+import { generatePlan, streamPlan } from '@/lib/planner/llm-planner';
 import { createInitialState } from '@/lib/world/state';
 import { validatePlan } from '@/lib/planner/validator';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { task, model } = body;
+    const { task, model, stream } = body;
 
     if (!task || typeof task !== 'string' || task.trim().length === 0) {
       return NextResponse.json(
@@ -27,6 +27,16 @@ export async function POST(req: NextRequest) {
 
     // Use the initial world state (always starts from default)
     const worldState = createInitialState();
+
+    // Streaming mode: return partial objects as they arrive
+    if (stream) {
+      const result = streamPlan(worldState, task.trim(), {
+        apiKey,
+        model: model || undefined,
+        temperature: 0.1,
+      });
+      return result.toTextStreamResponse();
+    }
 
     // Generate plan from LLM
     const planResult = await generatePlan(worldState, task.trim(), {

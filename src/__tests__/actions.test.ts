@@ -139,4 +139,164 @@ describe('Action Definitions', () => {
       expect(newState.surfaces['shelf_a'].objectsOn).toContain('red_box');
     });
   });
+
+  describe('push', () => {
+    const push = actionDefinitions.push;
+
+    it('passes when robot is adjacent, object not held, destination free', () => {
+      const state = createInitialState();
+      // red_box at (2,3), put robot at (2,2) — push east
+      state.robot.position = { row: 2, col: 2 };
+      expect(push.preconditions(state, { object_id: 'red_box', direction: 'east' })).toBe(true);
+    });
+
+    it('fails when robot is not adjacent', () => {
+      const state = createInitialState();
+      expect(push.preconditions(state, { object_id: 'red_box', direction: 'east' })).toBe(false);
+    });
+
+    it('fails when object is held', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 2, col: 2 };
+      state.objects['red_box'].isHeld = true;
+      expect(push.preconditions(state, { object_id: 'red_box', direction: 'east' })).toBe(false);
+    });
+
+    it('fails when destination is out of bounds', () => {
+      const state = createInitialState();
+      // Move red_box to edge (0,3), robot at (1,3)
+      state.objects['red_box'].position = { row: 0, col: 3 };
+      state.robot.position = { row: 1, col: 3 };
+      expect(push.preconditions(state, { object_id: 'red_box', direction: 'north' })).toBe(false);
+    });
+
+    it('fails with invalid direction', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 2, col: 2 };
+      expect(push.preconditions(state, { object_id: 'red_box', direction: 'up' })).toBe(false);
+    });
+
+    it('effect: moves object one cell, robot takes old position', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 2, col: 2 };
+      const newState = push.effects(state, { object_id: 'red_box', direction: 'east' });
+      // red_box was at (2,3), now at (2,4)
+      expect(newState.objects['red_box'].position).toEqual({ row: 2, col: 4 });
+      // robot moves into old object position
+      expect(newState.robot.position).toEqual({ row: 2, col: 3 });
+    });
+  });
+
+  describe('stack', () => {
+    const stack = actionDefinitions.stack;
+
+    it('passes when holding object and adjacent to target object', () => {
+      const state = createInitialState();
+      state.robot.holding = 'red_box';
+      state.objects['red_box'].isHeld = true;
+      // blue_box at (4,1), put robot at (4,0)
+      state.robot.position = { row: 4, col: 0 };
+      expect(stack.preconditions(state, { object_id: 'red_box', target_object_id: 'blue_box' })).toBe(true);
+    });
+
+    it('fails when not holding the object', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 4, col: 0 };
+      expect(stack.preconditions(state, { object_id: 'red_box', target_object_id: 'blue_box' })).toBe(false);
+    });
+
+    it('fails when stacking on self', () => {
+      const state = createInitialState();
+      state.robot.holding = 'red_box';
+      state.objects['red_box'].isHeld = true;
+      expect(stack.preconditions(state, { object_id: 'red_box', target_object_id: 'red_box' })).toBe(false);
+    });
+
+    it('fails when target is held', () => {
+      const state = createInitialState();
+      state.robot.holding = 'red_box';
+      state.objects['red_box'].isHeld = true;
+      state.objects['blue_box'].isHeld = true;
+      state.robot.position = { row: 4, col: 0 };
+      expect(stack.preconditions(state, { object_id: 'red_box', target_object_id: 'blue_box' })).toBe(false);
+    });
+
+    it('effect: object placed on target, robot releases', () => {
+      const state = createInitialState();
+      state.robot.holding = 'red_box';
+      state.objects['red_box'].isHeld = true;
+      state.robot.position = { row: 4, col: 0 };
+      const newState = stack.effects(state, { object_id: 'red_box', target_object_id: 'blue_box' });
+      expect(newState.robot.holding).toBeNull();
+      expect(newState.objects['red_box'].isHeld).toBe(false);
+      expect(newState.objects['red_box'].stackedOn).toBe('blue_box');
+      expect(newState.objects['red_box'].position).toEqual(newState.objects['blue_box'].position);
+    });
+  });
+
+  describe('open', () => {
+    const open = actionDefinitions.open;
+
+    it('passes when adjacent to closed container', () => {
+      const state = createInitialState();
+      // container_a at (3,4), put robot at (3,3)
+      state.robot.position = { row: 3, col: 3 };
+      expect(open.preconditions(state, { container_id: 'container_a' })).toBe(true);
+    });
+
+    it('fails when container is already open', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 3, col: 3 };
+      state.containers['container_a'].isOpen = true;
+      expect(open.preconditions(state, { container_id: 'container_a' })).toBe(false);
+    });
+
+    it('fails when not adjacent', () => {
+      const state = createInitialState();
+      expect(open.preconditions(state, { container_id: 'container_a' })).toBe(false);
+    });
+
+    it('fails for unknown container', () => {
+      const state = createInitialState();
+      expect(open.preconditions(state, { container_id: 'container_c' })).toBe(false);
+    });
+
+    it('effect: container becomes open', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 3, col: 3 };
+      const newState = open.effects(state, { container_id: 'container_a' });
+      expect(newState.containers['container_a'].isOpen).toBe(true);
+    });
+  });
+
+  describe('close', () => {
+    const close = actionDefinitions.close;
+
+    it('passes when adjacent to open container', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 3, col: 3 };
+      state.containers['container_a'].isOpen = true;
+      expect(close.preconditions(state, { container_id: 'container_a' })).toBe(true);
+    });
+
+    it('fails when container is already closed', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 3, col: 3 };
+      expect(close.preconditions(state, { container_id: 'container_a' })).toBe(false);
+    });
+
+    it('fails when not adjacent', () => {
+      const state = createInitialState();
+      state.containers['container_a'].isOpen = true;
+      expect(close.preconditions(state, { container_id: 'container_a' })).toBe(false);
+    });
+
+    it('effect: container becomes closed', () => {
+      const state = createInitialState();
+      state.robot.position = { row: 3, col: 3 };
+      state.containers['container_a'].isOpen = true;
+      const newState = close.effects(state, { container_id: 'container_a' });
+      expect(newState.containers['container_a'].isOpen).toBe(false);
+    });
+  });
 });

@@ -1,0 +1,14 @@
+FROM osrf/ros:jazzy-desktop
+
+# Install Gazebo Harmonic and Nav2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-ros-gz \
+    ros-jazzy-nav2-bringup \
+    ros-jazzy-robot-state-publisher \
+    ros-jazzy-joint-state-publisher \
+    ros-jazzy-xacro \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create workspace
+RUN mkdir -p /workspace
+WORKDIR /workspace

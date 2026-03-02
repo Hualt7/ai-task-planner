@@ -1,4 +1,4 @@
-import type { ObjectId, SurfaceId, Direction } from './domain';
+import type { ObjectId, SurfaceId, ContainerId, Direction } from './domain';
 
 export const GRID_SIZE = 10;
 
@@ -15,6 +15,8 @@ export interface ObjectState {
   color: string;
   position: GridPos;
   onSurface: SurfaceId | null;
+  inContainer: ContainerId | null;
+  stackedOn: ObjectId | null;
   isHeld: boolean;
 }
 
@@ -27,6 +29,16 @@ export interface SurfaceState {
   objectsOn: ObjectId[];
 }
 
+export interface ContainerState {
+  id: ContainerId;
+  type: 'container';
+  color: string;
+  position: GridPos;
+  isOpen: boolean;
+  slots: number;
+  objectsInside: ObjectId[];
+}
+
 export interface WorldState {
   robot: {
     position: GridPos;
@@ -35,6 +47,7 @@ export interface WorldState {
   };
   objects: Record<string, ObjectState>;
   surfaces: Record<string, SurfaceState>;
+  containers: Record<string, ContainerState>;
   grid: CellType[][];
 }
 
@@ -57,6 +70,8 @@ export function createInitialState(): WorldState {
       color: '#ef4444',
       position: { row: 2, col: 3 },
       onSurface: null,
+      inContainer: null,
+      stackedOn: null,
       isHeld: false,
     },
     blue_box: {
@@ -65,6 +80,8 @@ export function createInitialState(): WorldState {
       color: '#3b82f6',
       position: { row: 4, col: 1 },
       onSurface: null,
+      inContainer: null,
+      stackedOn: null,
       isHeld: false,
     },
     green_box: {
@@ -73,6 +90,8 @@ export function createInitialState(): WorldState {
       color: '#22c55e',
       position: { row: 6, col: 7 },
       onSurface: null,
+      inContainer: null,
+      stackedOn: null,
       isHeld: false,
     },
     yellow_box: {
@@ -81,6 +100,8 @@ export function createInitialState(): WorldState {
       color: '#eab308',
       position: { row: 8, col: 5 },
       onSurface: null,
+      inContainer: null,
+      stackedOn: null,
       isHeld: false,
     },
   };
@@ -120,12 +141,36 @@ export function createInitialState(): WorldState {
     },
   };
 
+  const containers: Record<string, ContainerState> = {
+    container_a: {
+      id: 'container_a',
+      type: 'container',
+      color: '#06b6d4',
+      position: { row: 3, col: 4 },
+      isOpen: false,
+      slots: 2,
+      objectsInside: [],
+    },
+    container_b: {
+      id: 'container_b',
+      type: 'container',
+      color: '#14b8a6',
+      position: { row: 7, col: 7 },
+      isOpen: false,
+      slots: 2,
+      objectsInside: [],
+    },
+  };
+
   // Mark occupied cells
   for (const obj of Object.values(objects)) {
     grid[obj.position.row][obj.position.col] = 'object';
   }
   for (const surf of Object.values(surfaces)) {
     grid[surf.position.row][surf.position.col] = 'surface';
+  }
+  for (const cont of Object.values(containers)) {
+    grid[cont.position.row][cont.position.col] = 'surface';
   }
 
   return {
@@ -136,6 +181,7 @@ export function createInitialState(): WorldState {
     },
     objects,
     surfaces,
+    containers,
     grid,
   };
 }

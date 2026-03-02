@@ -7,10 +7,13 @@ interface PlaybackControlsProps {
   isLoading: boolean;
   currentStep: number;
   totalSteps: number;
+  speedMultiplier: number;
   onPause: () => void;
   onResume: () => void;
   onStep: () => void;
   onReset: () => void;
+  onSpeedChange: (speed: number) => void;
+  onSeek: (step: number) => void;
 }
 
 export function PlaybackControls({
@@ -20,10 +23,13 @@ export function PlaybackControls({
   isLoading,
   currentStep,
   totalSteps,
+  speedMultiplier,
   onPause,
   onResume,
   onStep,
   onReset,
+  onSpeedChange,
+  onSeek,
 }: PlaybackControlsProps) {
   const hasActivePlan = totalSteps > 0;
   const canPause = isRunning && !isPaused;
@@ -112,6 +118,42 @@ export function PlaybackControls({
           Reset
         </button>
       </div>
+
+      {/* Speed slider */}
+      <div className="mt-3">
+        <div className="flex justify-between text-[10px] text-gray-600 font-mono mb-1">
+          <span>Speed</span>
+          <span>{speedMultiplier.toFixed(1)}x</span>
+        </div>
+        <input
+          type="range"
+          min={0.5}
+          max={3.0}
+          step={0.25}
+          value={speedMultiplier}
+          onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
+          className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+        />
+      </div>
+
+      {/* Timeline scrubber */}
+      {hasActivePlan && totalSteps > 1 && (
+        <div className="mt-3">
+          <div className="text-[10px] text-gray-600 font-mono mb-1">Timeline</div>
+          <input
+            type="range"
+            min={0}
+            max={totalSteps - 1}
+            value={Math.min(currentStep, totalSteps - 1)}
+            onChange={(e) => onSeek(parseInt(e.target.value))}
+            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+          />
+          <div className="flex justify-between text-[10px] text-gray-600 font-mono mt-0.5">
+            <span>1</span>
+            <span>{totalSteps}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

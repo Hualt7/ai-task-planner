@@ -5,12 +5,15 @@ import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useExecutor } from '@/hooks/useExecutor';
+import { useGazebo } from '@/hooks/useGazebo';
 import { PlanPanel } from '@/components/ui/PlanPanel';
 import { TaskInput } from '@/components/ui/TaskInput';
 import { ModelSelector } from '@/components/ui/ModelSelector';
 import { PlaybackControls } from '@/components/ui/PlaybackControls';
 import { WorldStatePanel } from '@/components/ui/WorldStatePanel';
+import GazeboPanel from '@/components/ui/GazeboPanel';
 import type { SymbolicAction } from '@/lib/types';
+import type { CameraPreset } from '@/components/scene/CameraController';
 
 // Dynamic import for R3F (no SSR)
 const SceneCanvas = dynamic(
@@ -40,12 +43,17 @@ interface LlmStatus {
   usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
   validationError: string | null;
   planActions: SymbolicAction[] | null;
+  replanCount: number;
+  replanStatus: 'idle' | 'replanning' | 'replanned' | 'replan_failed';
+  lastTask: string | null;
 }
 
 function PlaygroundContent() {
   const executor = useExecutor();
+  const gazebo = useGazebo();
   const searchParams = useSearchParams();
   const [selectedModel, setSelectedModel] = useState('google/gemini-3-flash-preview');
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset | undefined>(undefined);
   const [replayTask, setReplayTask] = useState<string | null>(null);
   const [llmStatus, setLlmStatus] = useState<LlmStatus>({
     loading: false,
@@ -54,6 +62,9 @@ function PlaygroundContent() {
     usage: null,
     validationError: null,
     planActions: null,
+    replanCount: 0,
+    replanStatus: 'idle',
+    lastTask: null,
   });
 
   // Handle replay from history
@@ -77,6 +88,9 @@ function PlaygroundContent() {
             usage: plan.token_usage || null,
             validationError: null,
             planActions: plan.plan,
+            replanCount: 0,
+            replanStatus: 'idle',
+            lastTask: plan.task || null,
           });
           executor.reset();
           executor.runPlan(plan.plan as SymbolicAction[]);
@@ -89,11 +103,48 @@ function PlaygroundContent() {
 
   const handleLlmPlan = useCallback(
     async (task: string) => {
-      setLlmStatus({ loading: true, reasoning: null, model: null, usage: null, validationError: null, planActions: null });
+      setLlmStatus({ loading: true, reasoning: null, model: null, usage: null, validationError: null, planActions: null, replanCount: 0, replanStatus: 'idle', lastTask: task });
       setReplayTask(null);
       executor.reset();
 
       try {
+        // Use non-streaming endpoint for validation + history saving
+        // but also fire a streaming request for live reasoning preview
+        const streamRes = fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task, model: selectedModel, stream: true }),
+        });
+
+        // Parse streaming response for live updates
+        const streamResponse = await streamRes;
+        if (streamResponse.ok && streamResponse.body) {
+          const reader = streamResponse.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            // Try to parse partial JSON from the stream
+            try {
+              // streamObject sends text stream of partial JSON
+              const partial = JSON.parse(buffer);
+              if (partial.reasoning) {
+                setLlmStatus((prev) => ({ ...prev, reasoning: partial.reasoning }));
+              }
+              if (partial.plan && Array.isArray(partial.plan)) {
+                setLlmStatus((prev) => ({ ...prev, planActions: partial.plan }));
+              }
+            } catch {
+              // Partial JSON, keep accumulating
+            }
+          }
+        }
+
+        // Now fetch the validated result from non-streaming endpoint
         const res = await fetch('/api/plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -113,7 +164,8 @@ function PlaygroundContent() {
 
         const validationFailed = !data.validation?.valid;
 
-        setLlmStatus({
+        setLlmStatus((prev) => ({
+          ...prev,
           loading: false,
           reasoning: data.reasoning || null,
           model: data.model || null,
@@ -122,11 +174,17 @@ function PlaygroundContent() {
             ? `Validation failed at step ${data.validation?.failedAtStep}: ${data.validation?.reason}`
             : null,
           planActions: data.plan || null,
-        });
+        }));
 
         // If validation passed, execute the plan
         if (!validationFailed && data.plan) {
           executor.runPlan(data.plan);
+          // Also send to Gazebo if connected
+          if (gazebo.status === 'connected') {
+            gazebo.sendPlan(
+              data.plan.map((a: SymbolicAction) => ({ action: a.action, params: a.args }))
+            );
+          }
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -143,8 +201,58 @@ function PlaygroundContent() {
   const clearAll = useCallback(() => {
     executor.reset();
     setReplayTask(null);
-    setLlmStatus({ loading: false, reasoning: null, model: null, usage: null, validationError: null, planActions: null });
+    setLlmStatus({ loading: false, reasoning: null, model: null, usage: null, validationError: null, planActions: null, replanCount: 0, replanStatus: 'idle', lastTask: null });
   }, [executor]);
+
+  // Re-plan when execution fails
+  const handleReplan = useCallback(async () => {
+    if (!llmStatus.lastTask || llmStatus.replanCount >= 2) return;
+
+    setLlmStatus((prev) => ({ ...prev, replanStatus: 'replanning', replanCount: prev.replanCount + 1 }));
+
+    try {
+      const res = await fetch('/api/replan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentState: executor.worldState,
+          originalTask: llmStatus.lastTask,
+          failedStep: executor.executablePlan[executor.currentStep],
+          failureReason: executor.error,
+          completedSteps: executor.executablePlan.slice(0, executor.currentStep),
+          model: selectedModel,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.validation?.valid) {
+        setLlmStatus((prev) => ({
+          ...prev,
+          replanStatus: 'replan_failed',
+          validationError: data.error || data.validation?.reason || 'Re-plan failed',
+        }));
+        return;
+      }
+
+      setLlmStatus((prev) => ({
+        ...prev,
+        replanStatus: 'replanned',
+        reasoning: data.reasoning || prev.reasoning,
+        planActions: data.plan,
+        validationError: null,
+      }));
+
+      executor.runPlan(data.plan);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setLlmStatus((prev) => ({
+        ...prev,
+        replanStatus: 'replan_failed',
+        validationError: `Re-plan error: ${message}`,
+      }));
+    }
+  }, [llmStatus.lastTask, llmStatus.replanCount, executor, selectedModel]);
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f] text-white">
@@ -189,6 +297,8 @@ function PlaygroundContent() {
           <SceneCanvas
             worldState={executor.worldState}
             currentWaypoints={executor.currentWaypoints}
+            cameraPreset={cameraPreset}
+            speedMultiplier={executor.speedMultiplier}
           />
 
           {/* Status overlay */}
@@ -201,6 +311,23 @@ function PlaygroundContent() {
             </div>
           </div>
 
+          {/* Camera preset buttons */}
+          <div className="absolute bottom-4 right-4 flex gap-1">
+            {([['orbit', 'Orbit'], ['top-down', 'Top'], ['isometric', 'Iso']] as const).map(([preset, label]) => (
+              <button
+                key={preset}
+                onClick={() => setCameraPreset(cameraPreset === preset ? undefined : preset)}
+                className={`px-2 py-1 rounded text-[10px] font-mono transition-colors ${
+                  cameraPreset === preset
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-black/60 text-gray-400 hover:bg-black/80 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Replay banner */}
           {replayTask && (
             <div className="absolute top-4 right-4 bg-cyan-900/60 backdrop-blur-sm rounded-md px-3 py-2 text-xs">
@@ -209,12 +336,33 @@ function PlaygroundContent() {
             </div>
           )}
 
+          {/* Re-planning overlay */}
+          {llmStatus.replanStatus === 'replanning' && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+              <div className="bg-gray-900 rounded-lg px-6 py-4 text-center">
+                <div className="text-cyan-400 text-sm font-mono animate-pulse">
+                  Re-planning... (attempt {llmStatus.replanCount}/2)
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Error display */}
           {(executor.error || llmStatus.validationError) && (
             <div className="absolute bottom-4 left-4 right-4 max-w-lg bg-red-900/80 backdrop-blur-sm rounded-md px-4 py-3 text-sm">
               <div className="flex items-start gap-2">
                 <span className="text-red-400 shrink-0">&#10005;</span>
-                <span className="text-red-200 text-xs break-words">{executor.error || llmStatus.validationError}</span>
+                <div className="flex-1">
+                  <span className="text-red-200 text-xs break-words">{executor.error || llmStatus.validationError}</span>
+                  {llmStatus.lastTask && llmStatus.replanCount < 2 && llmStatus.replanStatus !== 'replanning' && (
+                    <button
+                      onClick={handleReplan}
+                      className="ml-2 px-2 py-0.5 bg-cyan-700 hover:bg-cyan-600 rounded text-[10px] text-white font-mono transition-colors"
+                    >
+                      Re-plan
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -279,10 +427,13 @@ function PlaygroundContent() {
             isLoading={llmStatus.loading}
             currentStep={executor.currentStep}
             totalSteps={executor.executablePlan.length}
+            speedMultiplier={executor.speedMultiplier}
             onPause={executor.pause}
             onResume={executor.resume}
             onStep={executor.stepForward}
             onReset={clearAll}
+            onSpeedChange={executor.setSpeed}
+            onSeek={executor.seekToStep}
           />
 
           {/* Quick demos */}
@@ -306,6 +457,22 @@ function PlaygroundContent() {
                 Demo 2
               </button>
             </div>
+          </div>
+
+          {/* Gazebo Simulator */}
+          <div className="p-4 border-t border-gray-800">
+            <GazeboPanel
+              status={gazebo.status}
+              robotPose={gazebo.robotPose}
+              currentStep={gazebo.currentStep}
+              currentAction={gazebo.currentAction}
+              lastError={gazebo.lastError}
+              planExecuting={gazebo.planExecuting}
+              planResult={gazebo.planResult}
+              onConnect={gazebo.connect}
+              onDisconnect={gazebo.disconnect}
+              onStop={gazebo.stopExecution}
+            />
           </div>
 
           {/* World state inspector */}

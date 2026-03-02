@@ -1,12 +1,14 @@
 import { z } from 'zod';
-import { OBJECT_IDS, SURFACE_IDS, ACTION_NAMES } from '../world/domain';
+import { OBJECT_IDS, SURFACE_IDS, CONTAINER_IDS, DIRECTIONS } from '../world/domain';
 
 // --- Zod schemas for structured LLM output ---
 // These constrain the LLM to only produce valid actions from our fixed vocabulary.
 
 const objectIdEnum = z.enum(OBJECT_IDS);
 const surfaceIdEnum = z.enum(SURFACE_IDS);
-const entityIdEnum = z.union([objectIdEnum, surfaceIdEnum]);
+const containerIdEnum = z.enum(CONTAINER_IDS);
+const directionEnum = z.enum(DIRECTIONS);
+const entityIdEnum = z.union([objectIdEnum, surfaceIdEnum, containerIdEnum]);
 
 // Navigate action: move robot adjacent to a target entity
 const navigateActionSchema = z.object({
@@ -33,11 +35,49 @@ const placeActionSchema = z.object({
   }),
 });
 
+// Push action: push an adjacent object one cell in a cardinal direction
+const pushActionSchema = z.object({
+  action: z.literal('push'),
+  args: z.object({
+    object_id: objectIdEnum,
+    direction: directionEnum,
+  }),
+});
+
+// Stack action: stack the held object on top of another object
+const stackActionSchema = z.object({
+  action: z.literal('stack'),
+  args: z.object({
+    object_id: objectIdEnum,
+    target_object_id: objectIdEnum,
+  }),
+});
+
+// Open action: open a closed container the robot is adjacent to
+const openActionSchema = z.object({
+  action: z.literal('open'),
+  args: z.object({
+    container_id: containerIdEnum,
+  }),
+});
+
+// Close action: close an open container the robot is adjacent to
+const closeActionSchema = z.object({
+  action: z.literal('close'),
+  args: z.object({
+    container_id: containerIdEnum,
+  }),
+});
+
 // Union of all valid actions
 export const symbolicActionSchema = z.discriminatedUnion('action', [
   navigateActionSchema,
   pickUpActionSchema,
   placeActionSchema,
+  pushActionSchema,
+  stackActionSchema,
+  openActionSchema,
+  closeActionSchema,
 ]);
 
 // Complete plan output from the LLM

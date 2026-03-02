@@ -1,8 +1,8 @@
-import { generateObject } from 'ai';
+import { generateObject, streamObject } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { symbolicPlanSchema } from './schema';
 import type { WorldState } from '../world/state';
-import { OBJECT_IDS, SURFACE_IDS, ACTION_NAMES } from '../world/domain';
+import { OBJECT_IDS, SURFACE_IDS, CONTAINER_IDS, ACTION_NAMES, DIRECTIONS } from '../world/domain';
 import type { SymbolicPlan } from '../types';
 
 // --- System prompt ---
@@ -12,18 +12,20 @@ function buildSystemPrompt(): string {
 
 ## World
 
-The world is a 10x10 grid. There is one robot, several movable box objects, and fixed surfaces (shelves and tables).
+The world is a 10x10 grid. There is one robot, several movable box objects, fixed surfaces (shelves and tables), and containers that can be opened/closed.
 
 ### Fixed Vocabulary (use ONLY these IDs)
 
 Objects: ${OBJECT_IDS.join(', ')}
 Surfaces: ${SURFACE_IDS.join(', ')}
+Containers: ${CONTAINER_IDS.join(', ')}
+Directions: ${DIRECTIONS.join(', ')}
 Actions: ${ACTION_NAMES.join(', ')}
 
 ### Actions
 
 1. **navigate** — Move the robot to a cell adjacent to a target entity.
-   - Args: { "target_id": "<object_id or surface_id>" }
+   - Args: { "target_id": "<object_id, surface_id, or container_id>" }
    - The robot pathfinds around obstacles automatically. You only specify the target.
 
 2. **pick_up** — Pick up an object. Robot must be adjacent and not holding anything.
@@ -32,11 +34,26 @@ Actions: ${ACTION_NAMES.join(', ')}
 3. **place** — Place the held object on a surface. Robot must be adjacent to the surface and be holding the object. Surface must have available slots.
    - Args: { "object_id": "<object_id>", "surface_id": "<surface_id>" }
 
+4. **push** — Push an adjacent object one cell in a cardinal direction. The destination cell must be free and in bounds. The robot cannot be holding anything.
+   - Args: { "object_id": "<object_id>", "direction": "north|south|east|west" }
+
+5. **stack** — Stack the held object on top of another object. Robot must be holding the object and be adjacent to the target object.
+   - Args: { "object_id": "<object_id>", "target_object_id": "<object_id>" }
+
+6. **open** — Open a closed container. Robot must be adjacent.
+   - Args: { "container_id": "<container_id>" }
+
+7. **close** — Close an open container. Robot must be adjacent.
+   - Args: { "container_id": "<container_id>" }
+
 ### Planning Rules
 
-- Always navigate to an object/surface BEFORE interacting with it.
+- Always navigate to an entity BEFORE interacting with it.
 - The robot can only hold ONE object at a time.
 - To move object A to surface B: navigate(A) → pick_up(A) → navigate(B) → place(A, B)
+- To push object A south: navigate(A) → push(A, south)
+- To stack A on B: navigate(A) → pick_up(A) → navigate(B) → stack(A, B)
+- To interact with objects inside a container: navigate(container) → open(container) first.
 - For multi-object tasks, complete one object fully before starting the next.
 - Use the fewest actions possible. Do not add unnecessary steps.
 - Only use IDs from the fixed vocabulary above. Never invent new IDs.`;
@@ -64,6 +81,13 @@ function buildUserPrompt(worldState: WorldState, task: string): string {
   - Holding: ${worldState.robot.holding ?? 'nothing'}
   - Facing: ${worldState.robot.facing}`;
 
+  const containerStates = Object.values(worldState.containers)
+    .map((cont) => {
+      const items = cont.objectsInside.length > 0 ? cont.objectsInside.join(', ') : 'empty';
+      return `  - ${cont.id} (${cont.isOpen ? 'open' : 'closed'}, ${cont.slots} slots): [${items}] at (${cont.position.row}, ${cont.position.col})`;
+    })
+    .join('\n');
+
   return `## Current World State
 
 Robot:
@@ -74,6 +98,9 @@ ${objectStates}
 
 Surfaces:
 ${surfaceStates}
+
+Containers:
+${containerStates}
 
 ## Task
 
@@ -165,3 +192,30 @@ export async function generatePlan(
     };
   }
 }
+
+/**
+ * Stream a plan from the LLM. Returns a streamObject result
+ * that can be converted to a text stream response.
+ */
+export function streamPlan(
+  worldState: WorldState,
+  task: string,
+  config: PlannerConfig
+) {
+  const modelId = config.model || 'google/gemini-3-flash-preview';
+  const openrouter = createOpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: config.apiKey,
+  });
+
+  return streamObject({
+    model: openrouter(modelId),
+    schema: symbolicPlanSchema,
+    system: buildSystemPrompt(),
+    prompt: buildUserPrompt(worldState, task),
+    temperature: config.temperature ?? 0.1,
+  });
+}
+
+// Re-export build prompt functions for re-planning
+export { buildSystemPrompt, buildUserPrompt };

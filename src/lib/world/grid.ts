@@ -64,6 +64,10 @@ export function buildOccupancyGrid(state: WorldState): CellType[][] {
     grid[surf.position.row][surf.position.col] = 'surface';
   }
 
+  for (const cont of Object.values(state.containers)) {
+    grid[cont.position.row][cont.position.col] = 'surface';
+  }
+
   return grid;
 }
 
@@ -74,6 +78,9 @@ export function getEntityPosition(state: WorldState, entityId: string): GridPos 
   }
   if (state.surfaces[entityId]) {
     return state.surfaces[entityId].position;
+  }
+  if (state.containers[entityId]) {
+    return state.containers[entityId].position;
   }
   return null;
 }

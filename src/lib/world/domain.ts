@@ -15,16 +15,27 @@ export const SURFACE_IDS = [
   'table_2',
 ] as const;
 
-export const ACTION_NAMES = ['navigate', 'pick_up', 'place'] as const;
+export const CONTAINER_IDS = ['container_a', 'container_b'] as const;
+
+export const ACTION_NAMES = [
+  'navigate',
+  'pick_up',
+  'place',
+  'push',
+  'stack',
+  'open',
+  'close',
+] as const;
 
 export const DIRECTIONS = ['north', 'south', 'east', 'west'] as const;
 
 // Types derived from const arrays
 export type ObjectId = (typeof OBJECT_IDS)[number];
 export type SurfaceId = (typeof SURFACE_IDS)[number];
+export type ContainerId = (typeof CONTAINER_IDS)[number];
 export type ActionName = (typeof ACTION_NAMES)[number];
 export type Direction = (typeof DIRECTIONS)[number];
-export type EntityId = ObjectId | SurfaceId;
+export type EntityId = ObjectId | SurfaceId | ContainerId;
 
 // Type guards — strict validation, no fuzzy matching
 export function isValidObjectId(id: string): id is ObjectId {
@@ -35,8 +46,12 @@ export function isValidSurfaceId(id: string): id is SurfaceId {
   return (SURFACE_IDS as readonly string[]).includes(id);
 }
 
+export function isValidContainerId(id: string): id is ContainerId {
+  return (CONTAINER_IDS as readonly string[]).includes(id);
+}
+
 export function isValidEntityId(id: string): id is EntityId {
-  return isValidObjectId(id) || isValidSurfaceId(id);
+  return isValidObjectId(id) || isValidSurfaceId(id) || isValidContainerId(id);
 }
 
 export function isValidActionName(name: string): name is ActionName {

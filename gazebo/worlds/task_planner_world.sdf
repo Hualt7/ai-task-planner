@@ -1,0 +1,486 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="task_planner_world">
+
+    <!-- Physics -->
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Scene lighting -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <light type="point" name="fill_light">
+      <pose>2.5 -2.5 5 0 0 0</pose>
+      <diffuse>0.4 0.4 0.4 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>20</range>
+        <constant>0.5</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      Grid mapping: 10x10 grid, 1 cell = 0.5m
+      World is 5m x 5m, origin at (0,0).
+      Grid (row, col) maps to world (col*0.5 + 0.25, -(row*0.5 + 0.25))
+      so grid (0,0) = world (0.25, -0.25), grid (9,9) = world (4.75, -4.75)
+    -->
+
+    <!-- ==================== Grid Floor Markings ==================== -->
+    <model name="grid_floor">
+      <static>true</static>
+      <pose>2.5 -2.5 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>5 5</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.75 0.78 0.82 1</ambient>
+            <diffuse>0.75 0.78 0.82 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== Boundary Walls ==================== -->
+    <!-- North wall (row = -1 side) -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>2.5 0.05 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>5.2 0.1 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>5.2 0.1 0.3</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- South wall (row = 10 side) -->
+    <model name="wall_south">
+      <static>true</static>
+      <pose>2.5 -5.05 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>5.2 0.1 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>5.2 0.1 0.3</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- West wall (col = -1 side) -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-0.05 -2.5 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 5.2 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 5.2 0.3</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- East wall (col = 10 side) -->
+    <model name="wall_east">
+      <static>true</static>
+      <pose>5.05 -2.5 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 5.2 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 5.2 0.3</size></box></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== Objects (Boxes) ==================== -->
+    <!-- Box size: 0.1m cube, sits on ground at z=0.05 -->
+
+    <!-- red_box at grid (2,3) → world (1.75, -1.25) -->
+    <model name="red_box">
+      <pose>1.75 -1.25 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+          <material>
+            <ambient>0.94 0.27 0.27 1</ambient>
+            <diffuse>0.94 0.27 0.27 1</diffuse>
+          </material>
+        </visual>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia>
+            <ixx>0.00003</ixx><iyy>0.00003</iyy><izz>0.00003</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- blue_box at grid (4,1) → world (0.75, -2.25) -->
+    <model name="blue_box">
+      <pose>0.75 -2.25 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+          <material>
+            <ambient>0.23 0.51 0.96 1</ambient>
+            <diffuse>0.23 0.51 0.96 1</diffuse>
+          </material>
+        </visual>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia>
+            <ixx>0.00003</ixx><iyy>0.00003</iyy><izz>0.00003</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- green_box at grid (6,7) → world (3.75, -3.25) -->
+    <model name="green_box">
+      <pose>3.75 -3.25 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+          <material>
+            <ambient>0.13 0.77 0.37 1</ambient>
+            <diffuse>0.13 0.77 0.37 1</diffuse>
+          </material>
+        </visual>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia>
+            <ixx>0.00003</ixx><iyy>0.00003</iyy><izz>0.00003</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- yellow_box at grid (8,5) → world (2.75, -4.25) -->
+    <model name="yellow_box">
+      <pose>2.75 -4.25 0.05 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 0.1 0.1</size></box></geometry>
+          <material>
+            <ambient>0.92 0.70 0.03 1</ambient>
+            <diffuse>0.92 0.70 0.03 1</diffuse>
+          </material>
+        </visual>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia>
+            <ixx>0.00003</ixx><iyy>0.00003</iyy><izz>0.00003</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- ==================== Surfaces ==================== -->
+    <!-- Shelves: 0.4m wide x 0.2m deep x 0.4m tall -->
+    <!-- Tables: 0.4m wide x 0.4m deep x 0.3m tall -->
+
+    <!-- shelf_a at grid (1,8) → world (4.25, -0.75) -->
+    <model name="shelf_a">
+      <static>true</static>
+      <pose>4.25 -0.75 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.4 0.2 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.4 0.2 0.4</size></box></geometry>
+          <material>
+            <ambient>0.55 0.36 0.96 1</ambient>
+            <diffuse>0.55 0.36 0.96 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- shelf_b at grid (3,8) → world (4.25, -1.75) -->
+    <model name="shelf_b">
+      <static>true</static>
+      <pose>4.25 -1.75 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.4 0.2 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.4 0.2 0.4</size></box></geometry>
+          <material>
+            <ambient>0.66 0.33 0.97 1</ambient>
+            <diffuse>0.66 0.33 0.97 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- table_1 at grid (5,5) → world (2.75, -2.75) -->
+    <model name="table_1">
+      <static>true</static>
+      <pose>2.75 -2.75 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.4 0.4 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.4 0.4 0.3</size></box></geometry>
+          <material>
+            <ambient>0.85 0.47 0.02 1</ambient>
+            <diffuse>0.85 0.47 0.02 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- table_2 at grid (7,2) → world (1.25, -3.75) -->
+    <model name="table_2">
+      <static>true</static>
+      <pose>1.25 -3.75 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.4 0.4 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.4 0.4 0.3</size></box></geometry>
+          <material>
+            <ambient>0.71 0.33 0.04 1</ambient>
+            <diffuse>0.71 0.33 0.04 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== Containers ==================== -->
+    <!-- Open-top boxes: 0.3m x 0.3m x 0.2m, with 4 walls and no top -->
+
+    <!-- container_a at grid (3,4) → world (2.25, -1.75) -->
+    <model name="container_a">
+      <static>true</static>
+      <pose>2.25 -1.75 0.0 0 0 0</pose>
+      <link name="link">
+        <!-- Floor -->
+        <collision name="floor_col">
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.3 0.3 0.01</size></box></geometry>
+        </collision>
+        <visual name="floor_vis">
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.3 0.3 0.01</size></box></geometry>
+          <material>
+            <ambient>0.02 0.71 0.83 1</ambient>
+            <diffuse>0.02 0.71 0.83 1</diffuse>
+          </material>
+        </visual>
+        <!-- Front wall -->
+        <collision name="front_col">
+          <pose>0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+        </collision>
+        <visual name="front_vis">
+          <pose>0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+          <material>
+            <ambient>0.02 0.71 0.83 0.7</ambient>
+            <diffuse>0.02 0.71 0.83 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Back wall -->
+        <collision name="back_col">
+          <pose>-0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+        </collision>
+        <visual name="back_vis">
+          <pose>-0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+          <material>
+            <ambient>0.02 0.71 0.83 0.7</ambient>
+            <diffuse>0.02 0.71 0.83 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Left wall -->
+        <collision name="left_col">
+          <pose>0 0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+        </collision>
+        <visual name="left_vis">
+          <pose>0 0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+          <material>
+            <ambient>0.02 0.71 0.83 0.7</ambient>
+            <diffuse>0.02 0.71 0.83 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Right wall -->
+        <collision name="right_col">
+          <pose>0 -0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+        </collision>
+        <visual name="right_vis">
+          <pose>0 -0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+          <material>
+            <ambient>0.02 0.71 0.83 0.7</ambient>
+            <diffuse>0.02 0.71 0.83 0.7</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- container_b at grid (7,7) → world (3.75, -3.75) -->
+    <model name="container_b">
+      <static>true</static>
+      <pose>3.75 -3.75 0.0 0 0 0</pose>
+      <link name="link">
+        <!-- Floor -->
+        <collision name="floor_col">
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.3 0.3 0.01</size></box></geometry>
+        </collision>
+        <visual name="floor_vis">
+          <pose>0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.3 0.3 0.01</size></box></geometry>
+          <material>
+            <ambient>0.08 0.72 0.65 1</ambient>
+            <diffuse>0.08 0.72 0.65 1</diffuse>
+          </material>
+        </visual>
+        <!-- Front wall -->
+        <collision name="front_col">
+          <pose>0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+        </collision>
+        <visual name="front_vis">
+          <pose>0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+          <material>
+            <ambient>0.08 0.72 0.65 0.7</ambient>
+            <diffuse>0.08 0.72 0.65 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Back wall -->
+        <collision name="back_col">
+          <pose>-0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+        </collision>
+        <visual name="back_vis">
+          <pose>-0.145 0 0.1 0 0 0</pose>
+          <geometry><box><size>0.01 0.3 0.2</size></box></geometry>
+          <material>
+            <ambient>0.08 0.72 0.65 0.7</ambient>
+            <diffuse>0.08 0.72 0.65 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Left wall -->
+        <collision name="left_col">
+          <pose>0 0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+        </collision>
+        <visual name="left_vis">
+          <pose>0 0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+          <material>
+            <ambient>0.08 0.72 0.65 0.7</ambient>
+            <diffuse>0.08 0.72 0.65 0.7</diffuse>
+          </material>
+        </visual>
+        <!-- Right wall -->
+        <collision name="right_col">
+          <pose>0 -0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+        </collision>
+        <visual name="right_vis">
+          <pose>0 -0.145 0.1 0 0 0</pose>
+          <geometry><box><size>0.28 0.01 0.2</size></box></geometry>
+          <material>
+            <ambient>0.08 0.72 0.65 0.7</ambient>
+            <diffuse>0.08 0.72 0.65 0.7</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Robot is spawned via entrypoint script after world loads -->
+
+  </world>
+</sdf>

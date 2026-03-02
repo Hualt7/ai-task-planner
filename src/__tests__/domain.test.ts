@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidObjectId,
   isValidSurfaceId,
+  isValidContainerId,
   isValidEntityId,
   isValidActionName,
   OBJECT_IDS,
   SURFACE_IDS,
+  CONTAINER_IDS,
   ACTION_NAMES,
 } from '@/lib/world/domain';
 
@@ -62,9 +64,30 @@ describe('Domain Vocabulary', () => {
 
     it('rejects unknown action names', () => {
       expect(isValidActionName('fly')).toBe(false);
-      expect(isValidActionName('push')).toBe(false);
       expect(isValidActionName('drop')).toBe(false);
+      expect(isValidActionName('throw')).toBe(false);
       expect(isValidActionName('')).toBe(false);
+    });
+  });
+
+  describe('isValidContainerId', () => {
+    it('accepts all defined container IDs', () => {
+      for (const id of CONTAINER_IDS) {
+        expect(isValidContainerId(id)).toBe(true);
+      }
+    });
+
+    it('rejects unknown container IDs', () => {
+      expect(isValidContainerId('container_c')).toBe(false);
+      expect(isValidContainerId('shelf_a')).toBe(false);
+      expect(isValidContainerId('')).toBe(false);
+    });
+  });
+
+  describe('isValidEntityId (extended)', () => {
+    it('accepts container IDs as valid entities', () => {
+      expect(isValidEntityId('container_a')).toBe(true);
+      expect(isValidEntityId('container_b')).toBe(true);
     });
   });
 });

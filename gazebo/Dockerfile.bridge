@@ -1,0 +1,17 @@
+FROM osrf/ros:jazzy-desktop
+
+# Install Python dependencies for the bridge
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-nav2-bringup \
+    ros-jazzy-robot-state-publisher \
+    ros-jazzy-joint-state-publisher \
+    ros-jazzy-xacro \
+    ros-jazzy-ros-gz-bridge \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --break-system-packages websockets
+
+# Create workspace
+RUN mkdir -p /workspace/ros2_ws
+WORKDIR /workspace

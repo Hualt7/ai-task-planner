@@ -18,10 +18,12 @@ export interface ExecutorState {
   isComplete: boolean;
   error: string | null;
   currentWaypoints: GridPos[];
+  speedMultiplier: number;
+  stateTrace: WorldState[];
 }
 
-const WAYPOINT_DELAY_MS = 200;
-const STEP_DELAY_MS = 600;
+const BASE_WAYPOINT_DELAY_MS = 200;
+const BASE_STEP_DELAY_MS = 600;
 
 export function useExecutor() {
   const [state, setState] = useState<ExecutorState>(() => ({
@@ -34,9 +36,12 @@ export function useExecutor() {
     isComplete: false,
     error: null,
     currentWaypoints: [],
+    speedMultiplier: 1.0,
+    stateTrace: [],
   }));
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speedRef = useRef(1.0);
   // Store execution context for resume/step
   const execContextRef = useRef<{
     worldState: WorldState;
@@ -55,7 +60,7 @@ export function useExecutor() {
   const reset = useCallback(() => {
     clearTimer();
     execContextRef.current = null;
-    setState({
+    setState((prev) => ({
       worldState: createInitialState(),
       executablePlan: [],
       currentStep: 0,
@@ -65,7 +70,9 @@ export function useExecutor() {
       isComplete: false,
       error: null,
       currentWaypoints: [],
-    });
+      speedMultiplier: prev.speedMultiplier,
+      stateTrace: [],
+    }));
   }, [clearTimer]);
 
   const executeNextTick = useCallback(
@@ -120,7 +127,7 @@ export function useExecutor() {
 
           timerRef.current = setTimeout(() => {
             executeNextTick(newState, plan, stepIndex, waypointIndex + 1);
-          }, WAYPOINT_DELAY_MS);
+          }, BASE_WAYPOINT_DELAY_MS / speedRef.current);
           return;
         }
 
@@ -144,7 +151,7 @@ export function useExecutor() {
 
         timerRef.current = setTimeout(() => {
           executeNextTick(currentWorldState, plan, stepIndex + 1, 0);
-        }, STEP_DELAY_MS);
+        }, BASE_STEP_DELAY_MS / speedRef.current);
         return;
       }
 
@@ -183,7 +190,7 @@ export function useExecutor() {
 
       timerRef.current = setTimeout(() => {
         executeNextTick(newState, plan, stepIndex + 1, 0);
-      }, STEP_DELAY_MS);
+      }, BASE_STEP_DELAY_MS / speedRef.current);
     },
     []
   );
@@ -210,7 +217,7 @@ export function useExecutor() {
     // Build executable plan with A* waypoints
     const executablePlan = buildExecutablePlan(initialState, symbolicPlan);
 
-    setState({
+    setState((prev) => ({
       worldState: initialState,
       executablePlan,
       currentStep: 0,
@@ -220,7 +227,9 @@ export function useExecutor() {
       isComplete: false,
       error: null,
       currentWaypoints: executablePlan[0]?.waypoints || [],
-    });
+      speedMultiplier: prev.speedMultiplier,
+      stateTrace: validationResult.stateTrace,
+    }));
 
     // Start execution
     executeNextTick(initialState, executablePlan, 0, 0);
@@ -257,6 +266,38 @@ export function useExecutor() {
     executeNextTick(ctx.worldState, ctx.plan, ctx.stepIndex, ctx.waypointIndex, true);
   }, [clearTimer, executeNextTick]);
 
+  const setSpeed = useCallback((speed: number) => {
+    speedRef.current = speed;
+    setState((prev) => ({ ...prev, speedMultiplier: speed }));
+  }, []);
+
+  const seekToStep = useCallback((stepIndex: number) => {
+    clearTimer();
+    setState((prev) => {
+      const targetState = prev.stateTrace[stepIndex + 1];
+      if (!targetState) return prev;
+
+      const newWorldState = cloneState(targetState);
+      execContextRef.current = {
+        worldState: newWorldState,
+        plan: prev.executablePlan,
+        stepIndex: stepIndex + 1,
+        waypointIndex: 0,
+      };
+
+      return {
+        ...prev,
+        worldState: newWorldState,
+        currentStep: stepIndex,
+        currentWaypointIndex: 0,
+        isRunning: true,
+        isPaused: true,
+        isComplete: false,
+        currentWaypoints: [],
+      };
+    });
+  }, [clearTimer]);
+
   return {
     ...state,
     runPlan,
@@ -264,5 +305,7 @@ export function useExecutor() {
     pause,
     resume,
     stepForward,
+    setSpeed,
+    seekToStep,
   };
 }

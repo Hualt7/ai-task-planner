@@ -1,0 +1,38 @@
+services:
+  gazebo:
+    build:
+      context: .
+      dockerfile: Dockerfile.gazebo
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - GZ_SIM_RESOURCE_PATH=/workspace/models:/workspace/worlds
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./urdf:/workspace/urdf
+      - ./worlds:/workspace/worlds
+      - ./models:/workspace/models
+    network_mode: host
+    command: >
+      bash -c "source /opt/ros/jazzy/setup.bash &&
+               xacro /workspace/urdf/task_bot.urdf.xacro > /tmp/task_bot.urdf &&
+               gz sim -r /workspace/worlds/task_planner_world.sdf"
+
+  bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    volumes:
+      - ./ros2_ws:/workspace/ros2_ws
+      - ./config:/workspace/config
+      - ./urdf:/workspace/urdf
+    network_mode: host
+    depends_on:
+      - gazebo
+    command: >
+      bash -c "source /opt/ros/jazzy/setup.bash &&
+               cd /workspace/ros2_ws &&
+               colcon build --symlink-install &&
+               source install/setup.bash &&
+               ros2 launch task_planner_bridge bridge.launch.py"

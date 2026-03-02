@@ -1,0 +1,351 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="task_bot">
+
+  <!-- ==================== Materials ==================== -->
+  <material name="chassis_color">
+    <color rgba="0.2 0.2 0.2 1.0"/>
+  </material>
+  <material name="wheel_color">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="arm_color">
+    <color rgba="0.8 0.4 0.0 1.0"/>
+  </material>
+  <material name="gripper_color">
+    <color rgba="0.9 0.9 0.9 1.0"/>
+  </material>
+
+  <!-- ==================== Properties ==================== -->
+  <xacro:property name="chassis_length" value="0.3"/>
+  <xacro:property name="chassis_width" value="0.2"/>
+  <xacro:property name="chassis_height" value="0.1"/>
+  <xacro:property name="wheel_radius" value="0.04"/>
+  <xacro:property name="wheel_width" value="0.02"/>
+  <xacro:property name="caster_radius" value="0.02"/>
+  <xacro:property name="arm_length" value="0.15"/>
+  <xacro:property name="arm_width" value="0.03"/>
+  <xacro:property name="gripper_length" value="0.06"/>
+  <xacro:property name="gripper_width" value="0.005"/>
+
+  <!-- ==================== Base Footprint ==================== -->
+  <link name="base_footprint"/>
+
+  <!-- ==================== Chassis ==================== -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="5.0"/>
+      <inertia ixx="0.02" ixy="0" ixz="0" iyy="0.04" iyz="0" izz="0.05"/>
+    </inertial>
+  </link>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius + chassis_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== Drive Wheels ==================== -->
+  <xacro:macro name="drive_wheel" params="prefix y_offset">
+    <link name="${prefix}_wheel">
+      <visual>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_color"/>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.3"/>
+        <inertia ixx="0.0002" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0003"/>
+      </inertial>
+    </link>
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel"/>
+      <origin xyz="0 ${y_offset} ${-chassis_height/2}" rpy="${-pi/2} 0 0"/>
+      <axis xyz="0 0 1"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:drive_wheel prefix="left" y_offset="${chassis_width/2 + wheel_width/2}"/>
+  <xacro:drive_wheel prefix="right" y_offset="${-chassis_width/2 - wheel_width/2}"/>
+
+  <!-- ==================== Caster Wheel ==================== -->
+  <link name="caster_wheel">
+    <visual>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <material name="wheel_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_wheel"/>
+    <origin xyz="${-chassis_length/2 + caster_radius} 0 ${-chassis_height/2 - wheel_radius + caster_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== 2-DOF Arm ==================== -->
+
+  <!-- Shoulder: revolute joint (0 to 1.57 rad) -->
+  <link name="arm_link">
+    <visual>
+      <origin xyz="0 0 ${arm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${arm_width} ${arm_width} ${arm_length}"/>
+      </geometry>
+      <material name="arm_color"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${arm_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${arm_width} ${arm_width} ${arm_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${arm_length/2}" rpy="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm_link"/>
+    <origin xyz="${chassis_length/2} 0 ${chassis_height/2}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="1.5708" effort="10" velocity="1.0"/>
+  </joint>
+
+  <!-- Gripper base (at end of arm) -->
+  <link name="gripper_base">
+    <visual>
+      <geometry>
+        <box size="0.04 0.04 0.02"/>
+      </geometry>
+      <material name="arm_color"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 0.04 0.02"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="gripper_base_joint" type="fixed">
+    <parent link="arm_link"/>
+    <child link="gripper_base"/>
+    <origin xyz="0 0 ${arm_length}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left gripper finger: prismatic (0 to 0.04m) -->
+  <link name="left_finger">
+    <visual>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${gripper_width} 0.02 ${gripper_length}"/>
+      </geometry>
+      <material name="gripper_color"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${gripper_width} 0.02 ${gripper_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.000005" ixy="0" ixz="0" iyy="0.000005" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="left_finger_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="left_finger"/>
+    <origin xyz="0 0.01 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="0.04" effort="5" velocity="0.5"/>
+  </joint>
+
+  <!-- Right gripper finger: prismatic (mirrored) -->
+  <link name="right_finger">
+    <visual>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${gripper_width} 0.02 ${gripper_length}"/>
+      </geometry>
+      <material name="gripper_color"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${gripper_width} 0.02 ${gripper_length}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${-gripper_length/2}" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.000005" ixy="0" ixz="0" iyy="0.000005" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="right_finger_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="right_finger"/>
+    <origin xyz="0 -0.01 0" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0" upper="0.04" effort="5" velocity="0.5"/>
+  </joint>
+
+  <!-- ==================== Sensors ==================== -->
+
+  <!-- 2D Lidar -->
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.02"/>
+      </geometry>
+      <material name="arm_color"/>
+    </visual>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0 0 ${chassis_height/2 + 0.01}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- IMU -->
+  <link name="imu_link">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== Gazebo Plugins ==================== -->
+  <gazebo>
+    <!-- Differential drive -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>${chassis_width + wheel_width}</wheel_separation>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_acceleration>2.0</max_angular_acceleration>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>/cmd_vel</topic>
+      <odom_topic>/odom</odom_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+    </plugin>
+
+    <!-- Joint state publisher -->
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <joint_name>left_wheel_joint</joint_name>
+      <joint_name>right_wheel_joint</joint_name>
+      <joint_name>shoulder_joint</joint_name>
+      <joint_name>left_finger_joint</joint_name>
+      <joint_name>right_finger_joint</joint_name>
+    </plugin>
+
+    <!-- Joint position controller for arm -->
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>shoulder_joint</joint_name>
+      <topic>/shoulder_cmd</topic>
+      <p_gain>20</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>1.0</d_gain>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>left_finger_joint</joint_name>
+      <topic>/gripper_cmd</topic>
+      <p_gain>10</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.5</d_gain>
+    </plugin>
+
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>right_finger_joint</joint_name>
+      <topic>/gripper_cmd</topic>
+      <p_gain>10</p_gain>
+      <i_gain>0.1</i_gain>
+      <d_gain>0.5</d_gain>
+    </plugin>
+  </gazebo>
+
+  <!-- Lidar sensor -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <topic>/scan</topic>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.1</min>
+          <max>8.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU sensor -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <topic>/imu</topic>
+    </sensor>
+  </gazebo>
+
+</robot>

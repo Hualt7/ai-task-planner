@@ -9,10 +9,10 @@ interface RobotProps {
   position: GridPos;
   holding: string | null;
   heldColor?: string;
-  targetPosition?: GridPos; // for smooth interpolation
+  speedMultiplier?: number;
 }
 
-export function Robot({ position, holding, heldColor }: RobotProps) {
+export function Robot({ position, holding, heldColor, speedMultiplier = 1 }: RobotProps) {
   const groupRef = useRef<THREE.Group>(null);
   const targetPos = useRef(new THREE.Vector3(position.col, 0.4, position.row));
 
@@ -22,7 +22,8 @@ export function Robot({ position, holding, heldColor }: RobotProps) {
   // Smooth movement interpolation
   useFrame(() => {
     if (groupRef.current) {
-      groupRef.current.position.lerp(targetPos.current, 0.1);
+      const lerpFactor = Math.min(0.1 * speedMultiplier, 0.5);
+      groupRef.current.position.lerp(targetPos.current, lerpFactor);
     }
   });
 

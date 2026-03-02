@@ -42,6 +42,14 @@ export function buildExecutablePlan(
       description = `Pick up ${step.args.object_id}`;
     } else if (step.action === 'place') {
       description = `Place ${step.args.object_id} on ${step.args.surface_id}`;
+    } else if (step.action === 'push') {
+      description = `Push ${step.args.object_id} ${step.args.direction}`;
+    } else if (step.action === 'stack') {
+      description = `Stack ${step.args.object_id} on ${step.args.target_object_id}`;
+    } else if (step.action === 'open') {
+      description = `Open ${step.args.container_id}`;
+    } else if (step.action === 'close') {
+      description = `Close ${step.args.container_id}`;
     }
 
     executableSteps.push({
