@@ -1,12 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useExecutor } from '@/hooks/useExecutor';
 import { PlanPanel } from '@/components/ui/PlanPanel';
 import { TaskInput } from '@/components/ui/TaskInput';
 import { ModelSelector } from '@/components/ui/ModelSelector';
+import { PlaybackControls } from '@/components/ui/PlaybackControls';
+import { WorldStatePanel } from '@/components/ui/WorldStatePanel';
 import type { SymbolicAction } from '@/lib/types';
 
 // Dynamic import for R3F (no SSR)
@@ -39,9 +42,11 @@ interface LlmStatus {
   planActions: SymbolicAction[] | null;
 }
 
-export default function PlaygroundPage() {
+function PlaygroundContent() {
   const executor = useExecutor();
+  const searchParams = useSearchParams();
   const [selectedModel, setSelectedModel] = useState('google/gemini-3-flash-preview');
+  const [replayTask, setReplayTask] = useState<string | null>(null);
   const [llmStatus, setLlmStatus] = useState<LlmStatus>({
     loading: false,
     reasoning: null,
@@ -51,9 +56,41 @@ export default function PlaygroundPage() {
     planActions: null,
   });
 
+  // Handle replay from history
+  useEffect(() => {
+    const replayId = searchParams.get('replay');
+    if (!replayId) return;
+
+    // Remove the replay param from URL without navigation
+    window.history.replaceState({}, '', '/playground');
+
+    fetch(`/api/history/${replayId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.plan && Array.isArray(data.plan.plan)) {
+          const plan = data.plan;
+          setReplayTask(plan.task || null);
+          setLlmStatus({
+            loading: false,
+            reasoning: plan.reasoning || null,
+            model: plan.model || null,
+            usage: plan.token_usage || null,
+            validationError: null,
+            planActions: plan.plan,
+          });
+          executor.reset();
+          executor.runPlan(plan.plan as SymbolicAction[]);
+        }
+      })
+      .catch(() => {
+        // Silently fail
+      });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleLlmPlan = useCallback(
     async (task: string) => {
       setLlmStatus({ loading: true, reasoning: null, model: null, usage: null, validationError: null, planActions: null });
+      setReplayTask(null);
       executor.reset();
 
       try {
@@ -105,6 +142,7 @@ export default function PlaygroundPage() {
 
   const clearAll = useCallback(() => {
     executor.reset();
+    setReplayTask(null);
     setLlmStatus({ loading: false, reasoning: null, model: null, usage: null, validationError: null, planActions: null });
   }, [executor]);
 
@@ -112,22 +150,31 @@ export default function PlaygroundPage() {
     <div className="h-screen flex flex-col bg-[#0a0a0f] text-white">
       {/* Header */}
       <header className="h-14 border-b border-gray-800 flex items-center px-6 shrink-0">
-        <h1 className="text-lg font-bold tracking-tight">
+        <Link href="/" className="text-lg font-bold tracking-tight hover:opacity-80 transition-opacity">
           <span className="text-cyan-400">AI</span> Task Planner
-        </h1>
+        </Link>
         <span className="ml-3 text-xs text-gray-500 font-mono">3D Robotics Planner</span>
         <div className="ml-auto flex items-center gap-3">
           <Link
             href="/history"
             className="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors font-mono"
           >
-            History →
+            History &rarr;
           </Link>
           <span className="text-[10px] text-gray-600 font-mono">
-            {executor.isRunning ? 'Executing...' : executor.isComplete ? 'Done' : llmStatus.loading ? 'Planning...' : 'Ready'}
+            {executor.isRunning && !executor.isPaused
+              ? 'Executing...'
+              : executor.isPaused
+                ? 'Paused'
+                : executor.isComplete
+                  ? 'Done'
+                  : llmStatus.loading
+                    ? 'Planning...'
+                    : 'Ready'}
           </span>
           <div className={`w-2 h-2 rounded-full ${
-            executor.isRunning ? 'bg-yellow-400 animate-pulse' :
+            executor.isRunning && !executor.isPaused ? 'bg-yellow-400 animate-pulse' :
+            executor.isPaused ? 'bg-yellow-400' :
             executor.isComplete ? 'bg-green-400' :
             llmStatus.loading ? 'bg-cyan-400 animate-pulse' :
             'bg-gray-600'
@@ -154,11 +201,19 @@ export default function PlaygroundPage() {
             </div>
           </div>
 
+          {/* Replay banner */}
+          {replayTask && (
+            <div className="absolute top-4 right-4 bg-cyan-900/60 backdrop-blur-sm rounded-md px-3 py-2 text-xs">
+              <span className="text-cyan-400 font-mono">Replaying:</span>{' '}
+              <span className="text-cyan-200">&ldquo;{replayTask}&rdquo;</span>
+            </div>
+          )}
+
           {/* Error display */}
           {(executor.error || llmStatus.validationError) && (
             <div className="absolute bottom-4 left-4 right-4 max-w-lg bg-red-900/80 backdrop-blur-sm rounded-md px-4 py-3 text-sm">
               <div className="flex items-start gap-2">
-                <span className="text-red-400 shrink-0">✕</span>
+                <span className="text-red-400 shrink-0">&#10005;</span>
                 <span className="text-red-200 text-xs break-words">{executor.error || llmStatus.validationError}</span>
               </div>
             </div>
@@ -167,7 +222,7 @@ export default function PlaygroundPage() {
           {/* Completion message */}
           {executor.isComplete && (
             <div className="absolute bottom-4 left-4 bg-green-900/80 backdrop-blur-sm rounded-md px-4 py-3 text-sm flex items-center gap-2">
-              <span className="text-green-400">✓</span>
+              <span className="text-green-400">&#10003;</span>
               <span className="text-green-300">Plan executed successfully.</span>
             </div>
           )}
@@ -216,57 +271,56 @@ export default function PlaygroundPage() {
             isRunning={executor.isRunning}
           />
 
-          {/* Controls */}
+          {/* Playback controls */}
+          <PlaybackControls
+            isRunning={executor.isRunning}
+            isPaused={executor.isPaused}
+            isComplete={executor.isComplete}
+            isLoading={llmStatus.loading}
+            currentStep={executor.currentStep}
+            totalSteps={executor.executablePlan.length}
+            onPause={executor.pause}
+            onResume={executor.resume}
+            onStep={executor.stepForward}
+            onReset={clearAll}
+          />
+
+          {/* Quick demos */}
           <div className="p-4 border-t border-gray-800">
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { clearAll(); executor.runPlan(DEMO_PLAN); }}
-                  disabled={executor.isRunning || llmStatus.loading}
-                  className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 rounded-md text-[10px] font-semibold transition-colors"
-                >
-                  Demo 1
-                </button>
-                <button
-                  onClick={() => { clearAll(); executor.runPlan(DEMO_PLAN_2); }}
-                  disabled={executor.isRunning || llmStatus.loading}
-                  className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 rounded-md text-[10px] font-semibold transition-colors"
-                >
-                  Demo 2
-                </button>
-                <button
-                  onClick={clearAll}
-                  disabled={executor.isRunning || llmStatus.loading}
-                  className="flex-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded-md text-[10px] transition-colors"
-                >
-                  Reset
-                </button>
-              </div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Quick Demos
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { clearAll(); executor.runPlan(DEMO_PLAN); }}
+                disabled={executor.isRunning || llmStatus.loading}
+                className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 rounded-md text-[10px] font-semibold transition-colors"
+              >
+                Demo 1
+              </button>
+              <button
+                onClick={() => { clearAll(); executor.runPlan(DEMO_PLAN_2); }}
+                disabled={executor.isRunning || llmStatus.loading}
+                className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 rounded-md text-[10px] font-semibold transition-colors"
+              >
+                Demo 2
+              </button>
             </div>
           </div>
 
-          {/* World state summary */}
-          <div className="p-4 border-t border-gray-800">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              World State
-            </h3>
-            <div className="space-y-1 text-xs font-mono text-gray-400">
-              {Object.values(executor.worldState.objects).map((obj) => (
-                <div key={obj.id} className="flex justify-between">
-                  <span style={{ color: obj.color }}>{obj.id}</span>
-                  <span>
-                    {obj.isHeld
-                      ? 'held by robot'
-                      : obj.onSurface
-                        ? `on ${obj.onSurface}`
-                        : `(${obj.position.row},${obj.position.col})`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* World state inspector */}
+          <WorldStatePanel worldState={executor.worldState} />
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrap in Suspense because useSearchParams needs it in Next.js App Router
+export default function PlaygroundPage() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-[#0a0a0f] flex items-center justify-center text-gray-500">Loading...</div>}>
+      <PlaygroundContent />
+    </Suspense>
   );
 }

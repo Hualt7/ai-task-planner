@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { PlanHistoryRow } from '@/lib/supabase';
 
 export default function HistoryPage() {
   const [history, setHistory] = useState<PlanHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     fetch('/api/history')
@@ -23,11 +25,15 @@ export default function HistoryPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleReplay = (row: PlanHistoryRow) => {
+    router.push(`/playground?replay=${row.id}`);
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
       <header className="h-14 border-b border-gray-800 flex items-center px-6">
-        <Link href="/playground" className="text-lg font-bold tracking-tight hover:opacity-80 transition-opacity">
+        <Link href="/" className="text-lg font-bold tracking-tight hover:opacity-80 transition-opacity">
           <span className="text-cyan-400">AI</span> Task Planner
         </Link>
         <span className="ml-3 text-xs text-gray-500 font-mono">Plan History</span>
@@ -35,7 +41,7 @@ export default function HistoryPage() {
           href="/playground"
           className="ml-auto text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
         >
-          ← Back to Playground
+          &larr; Back to Playground
         </Link>
       </header>
 
@@ -80,6 +86,14 @@ export default function HistoryPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {row.validation_passed && Array.isArray(row.plan) && (row.plan as unknown[]).length > 0 && (
+                    <button
+                      onClick={() => handleReplay(row)}
+                      className="text-[10px] px-2.5 py-1 bg-cyan-900/50 hover:bg-cyan-800/60 text-cyan-400 rounded-full font-mono transition-colors cursor-pointer"
+                    >
+                      Replay &rarr;
+                    </button>
+                  )}
                   {row.validation_passed ? (
                     <span className="text-[10px] px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full font-mono">
                       valid
