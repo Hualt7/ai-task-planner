@@ -86,14 +86,18 @@ def generate_launch_description():
     )
 
     # Spawn robot in Gazebo at grid (0,0) → world (0.25, -0.25)
+    # Uses a shell wrapper to handle the case where the robot already exists
+    # (e.g. bridge container restarted while Gazebo kept running)
     spawn_robot = ExecuteProcess(
         cmd=[
-            'gz', 'service', '-s', '/world/task_planner_world/create',
-            '--reqtype', 'gz.msgs.EntityFactory',
-            '--reptype', 'gz.msgs.Boolean',
-            '--timeout', '10000',
-            '--req',
-            'sdf_filename: "/tmp/task_bot.urdf", name: "task_bot", pose: {position: {x: 0.25, y: -0.25, z: 0.0}}'
+            'bash', '-c',
+            'gz service -s /world/task_planner_world/create '
+            '--reqtype gz.msgs.EntityFactory '
+            '--reptype gz.msgs.Boolean '
+            '--timeout 10000 '
+            '--req \'sdf_filename: "/tmp/task_bot.urdf", name: "task_bot", '
+            'pose: {position: {x: 0.25, y: -0.25, z: 0.0}}\' '
+            '|| echo "[WARN] Robot spawn failed (may already exist) — continuing"'
         ],
         output='screen',
     )

@@ -328,11 +328,17 @@ class BridgeNode(Node):
         a fully functional ros_gz_bridge.
         """
         tolerance = 0.10  # 10cm (relaxed for real physics)
-        max_iterations = 600  # 30 seconds max
         odom_check_at = 40  # Check after 40 * 0.05s = 2 seconds
 
         initial_x = self.robot_x
         initial_y = self.robot_y
+
+        # Dynamic timeout: 20 iterations/sec, 3x safety factor on travel time
+        dx0 = target_x - initial_x
+        dy0 = target_y - initial_y
+        dist0 = math.sqrt(dx0 * dx0 + dy0 * dy0)
+        time_estimate = dist0 / 0.5 + 5.0  # dist/speed + 5s buffer for rotation
+        max_iterations = max(600, int(time_estimate * 20 * 3))
 
         for i in range(max_iterations):
             if not self.is_executing:

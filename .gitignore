@@ -36,6 +36,20 @@ yarn-error.log*
 # vercel
 .vercel
 
+# ruflo / claude-flow (local tooling)
+.claude-flow/
+.claude/agents/
+.claude/commands/
+.claude/helpers/
+.claude/skills/
+.claude/settings.json
+.mcp.json
+CLAUDE.md.backup
+
+# Python bytecode
+__pycache__/
+*.pyc
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
