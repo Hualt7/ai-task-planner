@@ -61,6 +61,11 @@ class PlanTranslator:
         row, col = ENTITY_GRID_POSITIONS[entity_id]
         return self.grid_to_world(row, col)
 
+    def update_positions(self, positions: dict):
+        """Update entity positions from web app (for randomized layouts)."""
+        for entity_id, pos in positions.items():
+            ENTITY_GRID_POSITIONS[entity_id] = (pos['row'], pos['col'])
+
     def adjacent_position(
         self, entity_id: str, offset_row: int = 0, offset_col: int = -1
     ) -> Tuple[float, float]:

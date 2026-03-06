@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import type { WorldState, GridPos } from '@/lib/world/state';
-import { createInitialState, cloneState } from '@/lib/world/state';
+import { createInitialState, createRandomState, cloneState } from '@/lib/world/state';
 import { validatePlan } from '@/lib/planner/validator';
 import { buildExecutablePlan, executeStep } from '@/lib/executor/executor';
 import type { ExecutableStep } from '@/lib/executor/executor';
@@ -25,9 +25,12 @@ export interface ExecutorState {
 const BASE_WAYPOINT_DELAY_MS = 200;
 const BASE_STEP_DELAY_MS = 600;
 
-export function useExecutor() {
+export function useExecutor(stateFactory: () => WorldState = createRandomState) {
+  const stateFactoryRef = useRef(stateFactory);
+  stateFactoryRef.current = stateFactory;
+
   const [state, setState] = useState<ExecutorState>(() => ({
-    worldState: createInitialState(),
+    worldState: stateFactory(),
     executablePlan: [],
     currentStep: 0,
     currentWaypointIndex: 0,
@@ -61,7 +64,7 @@ export function useExecutor() {
     clearTimer();
     execContextRef.current = null;
     setState((prev) => ({
-      worldState: createInitialState(),
+      worldState: stateFactoryRef.current(),
       executablePlan: [],
       currentStep: 0,
       currentWaypointIndex: 0,
@@ -199,7 +202,7 @@ export function useExecutor() {
     clearTimer();
     execContextRef.current = null;
 
-    const initialState = createInitialState();
+    const initialState = stateFactoryRef.current();
 
     // Validate
     const validationResult = validatePlan(initialState, symbolicPlan);

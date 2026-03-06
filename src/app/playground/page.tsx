@@ -264,10 +264,16 @@ function PlaygroundContent() {
         <span className="ml-3 text-xs text-gray-500 font-mono">3D Robotics Planner</span>
         <div className="ml-auto flex items-center gap-3">
           <Link
+            href="/tutorial"
+            className="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors font-mono"
+          >
+            Tutorial
+          </Link>
+          <Link
             href="/history"
             className="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors font-mono"
           >
-            History &rarr;
+            History
           </Link>
           <span className="text-[10px] text-gray-600 font-mono">
             {executor.isRunning && !executor.isPaused
@@ -457,6 +463,13 @@ function PlaygroundContent() {
                 Demo 2
               </button>
             </div>
+            <button
+              onClick={() => { clearAll(); executor.reset(); }}
+              disabled={executor.isRunning || llmStatus.loading}
+              className="w-full mt-2 px-3 py-1.5 bg-cyan-900/40 hover:bg-cyan-800/50 disabled:bg-gray-800 disabled:text-gray-600 border border-cyan-700/30 rounded-md text-[10px] font-semibold text-cyan-400 transition-colors"
+            >
+              Randomize Layout
+            </button>
           </div>
 
           {/* Gazebo Simulator */}

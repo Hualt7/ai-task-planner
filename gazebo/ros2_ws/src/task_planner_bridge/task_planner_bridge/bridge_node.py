@@ -162,6 +162,17 @@ class BridgeNode(Node):
                     plan = msg.get('plan', [])
                     asyncio.create_task(self._execute_plan(plan))
 
+                elif msg_type == 'sync_positions':
+                    positions = msg.get('positions', {})
+                    self.translator.update_positions(positions)
+                    self.get_logger().info(
+                        f'Updated {len(positions)} entity positions from web app'
+                    )
+                    await websocket.send(json.dumps({
+                        'type': 'positions_synced',
+                        'count': len(positions),
+                    }))
+
                 elif msg_type == 'stop':
                     self.is_executing = False
                     self._stop_robot()

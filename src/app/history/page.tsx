@@ -37,12 +37,20 @@ export default function HistoryPage() {
           <span className="text-cyan-400">AI</span> Task Planner
         </Link>
         <span className="ml-3 text-xs text-gray-500 font-mono">Plan History</span>
-        <Link
-          href="/playground"
-          className="ml-auto text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-        >
-          &larr; Back to Playground
-        </Link>
+        <div className="ml-auto flex items-center gap-4">
+          <Link
+            href="/tutorial"
+            className="text-xs text-gray-500 hover:text-cyan-400 transition-colors"
+          >
+            Tutorial
+          </Link>
+          <Link
+            href="/playground"
+            className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            &larr; Playground
+          </Link>
+        </div>
       </header>
 
       <div className="max-w-4xl mx-auto p-6">

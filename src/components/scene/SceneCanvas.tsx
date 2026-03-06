@@ -1,7 +1,7 @@
 'use client';
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, Sparkles } from '@react-three/drei';
 import { Room } from './Room';
 import { Robot } from './Robot';
 import { SceneObject } from './SceneObject';
@@ -23,7 +23,6 @@ interface SceneCanvasProps {
 }
 
 export function SceneCanvas({ worldState, currentWaypoints = [], cameraPreset, speedMultiplier = 1 }: SceneCanvasProps) {
-  // Get the color of the held object for the robot indicator
   const heldColor = worldState.robot.holding
     ? worldState.objects[worldState.robot.holding]?.color
     : undefined;
@@ -31,6 +30,7 @@ export function SceneCanvas({ worldState, currentWaypoints = [], cameraPreset, s
   return (
     <div className="w-full h-full rounded-lg overflow-hidden bg-[#0a0a1a]">
       <Canvas
+        shadows
         camera={{
           position: [GRID_SIZE / 2, 10, GRID_SIZE + 4],
           fov: 50,
@@ -38,10 +38,36 @@ export function SceneCanvas({ worldState, currentWaypoints = [], cameraPreset, s
           far: 100,
         }}
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 15, 10]} intensity={0.8} castShadow />
+        {/* Fog for depth */}
+        <fog attach="fog" args={['#0a0a1a', 15, 35]} />
+
+        {/* Lighting — richer with hemisphere for color variation */}
+        <ambientLight intensity={0.3} />
+        <hemisphereLight args={['#4488ff', '#1a1a2e', 0.4]} />
+        <directionalLight
+          position={[10, 15, 10]}
+          intensity={0.9}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-camera-far={50}
+          shadow-camera-left={-12}
+          shadow-camera-right={12}
+          shadow-camera-top={12}
+          shadow-camera-bottom={-12}
+        />
         <pointLight position={[GRID_SIZE / 2, 8, GRID_SIZE / 2]} intensity={0.3} color="#4488ff" />
+
+        {/* Ambient floating particles */}
+        <Sparkles
+          count={60}
+          scale={[GRID_SIZE, 4, GRID_SIZE]}
+          position={[GRID_SIZE / 2 - 0.5, 2, GRID_SIZE / 2 - 0.5]}
+          size={1.5}
+          speed={0.3}
+          opacity={0.4}
+          color="#6688cc"
+        />
 
         {/* Scene */}
         <Room />

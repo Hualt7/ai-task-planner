@@ -149,6 +149,14 @@ export class GazeboConnection {
     return true;
   }
 
+  syncPositions(positions: Record<string, { row: number; col: number }>): boolean {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+    this.ws.send(JSON.stringify({ type: 'sync_positions', positions }));
+    return true;
+  }
+
   ping(): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'ping' }));

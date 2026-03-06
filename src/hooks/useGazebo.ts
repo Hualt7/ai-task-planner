@@ -115,11 +115,19 @@ export function useGazebo(wsUrl?: string) {
     connRef.current?.stopExecution();
   }, []);
 
+  const syncPositions = useCallback(
+    (positions: Record<string, { row: number; col: number }>) => {
+      return connRef.current?.syncPositions(positions) || false;
+    },
+    []
+  );
+
   return {
     ...state,
     connect,
     disconnect,
     sendPlan,
     stopExecution,
+    syncPositions,
   };
 }
